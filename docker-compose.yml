@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
   frontend:
     build:
@@ -9,8 +11,6 @@ services:
       - VITE_BACKEND_URL=http://localhost:8080
     depends_on:
       - backend
-    networks:
-      - local-network
 
   backend:
     build:
@@ -24,24 +24,21 @@ services:
     depends_on:
       - mongo
     environment:
-      - MONGO_URI=mongodb://mongo:27017/analytics_aggregator
-    networks:
-      - local-network
+      - MONGO_URI=mongodb://root:secret@mongo:27017/analytics_aggregator
 
   mongo:
-    image: mongo:6.0
+    image: mongo:6-jammy
     container_name: mongodb
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin
+      MONGO_INITDB_ROOT_DATABASE: analytics_aggregator
     ports:
       - "27017:27017"
     volumes:
       - ./dbdata6:/data/db
-    networks:
-      - local-network
 
 
 volumes:
   dbdata6:
-
-networks:
-  local-network:
-    driver: bridge
