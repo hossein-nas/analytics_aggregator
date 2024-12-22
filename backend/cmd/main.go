@@ -14,6 +14,8 @@ import (
 	"github.com/hossein-nas/analytics_aggregator/internal/auth"
 	"github.com/hossein-nas/analytics_aggregator/internal/config"
 	"github.com/hossein-nas/analytics_aggregator/internal/project"
+	"github.com/hossein-nas/analytics_aggregator/internal/project/repository"
+	"github.com/hossein-nas/analytics_aggregator/internal/project/scheduler"
 	"github.com/hossein-nas/analytics_aggregator/pkg/database"
 )
 
@@ -47,11 +49,33 @@ func main() {
 
 	project.ProjectSetup(protectedRouter, db.Collection("projects"))
 
+	// Load scheduler config
+	schedulerConfig, err := scheduler.LoadConfig()
+	if err != nil {
+		log.Fatalf("Failed to load scheduler config: %v", err)
+	}
+
+	projectRepository := repository.NewProjectRepository(db.Collection("projects"))
+	projectScheduler := scheduler.NewScheduler(schedulerConfig, projectRepository)
+
+	// Start scheduler in a goroutine
+	schedulerCtx, schedulerCancel := context.WithCancel(context.Background())
+	defer schedulerCancel()
+
+	go func() {
+		if err := projectScheduler.Start(schedulerCtx); err != nil {
+			log.Printf("Scheduler error: %v", err)
+		}
+	}()
+
 	// Graceful shutdown
 	go func() {
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 		<-sigChan
+
+		// Stop the scheduler
+		projectScheduler.Stop()
 
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer shutdownCancel()
