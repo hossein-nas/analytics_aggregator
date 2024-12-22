@@ -13,6 +13,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/hossein-nas/analytics_aggregator/internal/auth"
 	"github.com/hossein-nas/analytics_aggregator/internal/config"
+	"github.com/hossein-nas/analytics_aggregator/internal/project"
 	"github.com/hossein-nas/analytics_aggregator/pkg/database"
 )
 
@@ -43,6 +44,8 @@ func main() {
 	// Auth setup
 	authHandler := auth.NewHandler(db.Database(), cfg.JWT)
 	protectedRouter := auth.RegisterRoutes(publicRouter, authHandler)
+
+	project.ProjectSetup(protectedRouter, db.Collection("projects"))
 
 	// Graceful shutdown
 	go func() {
