@@ -7,6 +7,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/hossein-nas/analytics_aggregator/internal/auth"
+	model "github.com/hossein-nas/analytics_aggregator/internal/project/models"
 )
 
 type Handler struct {
@@ -28,7 +29,7 @@ func RegisterRoutes(router *mux.Router, h *Handler) {
 }
 
 func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
-	var input CreateProjectInput
+	var input model.CreateProjectInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -53,7 +54,7 @@ func (h *Handler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	key := vars["key"]
 
-	var input UpdateProjectInput
+	var input model.UpdateProjectInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

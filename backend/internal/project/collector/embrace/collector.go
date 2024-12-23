@@ -9,12 +9,6 @@ import (
 	"time"
 )
 
-type Config struct {
-	AppID  string
-	APIKey string
-	Host   string // Optional, defaults to Embrace API endpoint
-}
-
 type Collector struct {
 	config  Config
 	client  *http.Client

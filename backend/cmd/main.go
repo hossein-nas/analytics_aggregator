@@ -14,8 +14,6 @@ import (
 	"github.com/hossein-nas/analytics_aggregator/internal/auth"
 	"github.com/hossein-nas/analytics_aggregator/internal/config"
 	"github.com/hossein-nas/analytics_aggregator/internal/project"
-	"github.com/hossein-nas/analytics_aggregator/internal/project/repository"
-	"github.com/hossein-nas/analytics_aggregator/internal/project/scheduler"
 	"github.com/hossein-nas/analytics_aggregator/pkg/database"
 )
 
@@ -47,16 +45,10 @@ func main() {
 	authHandler := auth.NewHandler(db.Database(), cfg.JWT)
 	protectedRouter := auth.RegisterRoutes(publicRouter, authHandler)
 
-	project.ProjectSetup(protectedRouter, db.Collection("projects"))
-
-	// Load scheduler config
-	schedulerConfig, err := scheduler.LoadConfig()
+	projectScheduler, err := project.ProjectSetup(protectedRouter, db.Collection("projects"))
 	if err != nil {
-		log.Fatalf("Failed to load scheduler config: %v", err)
+		log.Fatalf("Failed to setup project: %v", err)
 	}
-
-	projectRepository := repository.NewProjectRepository(db.Collection("projects"))
-	projectScheduler := scheduler.NewScheduler(schedulerConfig, projectRepository)
 
 	// Start scheduler in a goroutine
 	schedulerCtx, schedulerCancel := context.WithCancel(context.Background())
