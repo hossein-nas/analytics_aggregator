@@ -1,11 +1,11 @@
 package sentry
 
-import model "github.com/hossein-nas/analytics_aggregator/internal/project/models"
+import "github.com/hossein-nas/analytics_aggregator/internal/project/collector"
 
 type Config struct {
-	model.BaseCollector `bson:",inline"`
-	OrganizationSlug    string `bson:"org_slug"`
-	ProjectSlug         string `bson:"project_slug"`
-	AuthToken           string `bson:"auth_token"`
-	Host                string `bson:"host,omitempty"` // Optional for self-hosted
+	collector.BaseCollector `bson:",inline"`
+	OrganizationSlug        string `json:"org_slug" bson:"org_slug"`
+	ProjectSlug             string `json:"project_slug" bson:"project_slug"`
+	AuthToken               string `json:"auth_token" bson:"auth_token"`
+	Host                    string `json:"host,omitempty" bson:"host,omitempty"` // Optional for self-hosted
 }

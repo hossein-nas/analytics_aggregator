@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/hossein-nas/analytics_aggregator/internal/project/collector"
+	"github.com/hossein-nas/analytics_aggregator/internal/project/collector/sentry"
 	model "github.com/hossein-nas/analytics_aggregator/internal/project/models"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -24,6 +26,17 @@ func NewService(repo Repository) Service {
 }
 
 func (s *service) CreateProject(ctx context.Context, userID string, input model.CreateProjectInput) (*model.Project, error) {
+	var sentryConfig sentry.Config = sentry.Config{
+		BaseCollector: collector.BaseCollector{
+			ID:   primitive.NewObjectID(),
+			Type: "sentry",
+		},
+		OrganizationSlug: input.SentryConfig.OrganizationSlug,
+		ProjectSlug:      input.SentryConfig.ProjectSlug,
+		AuthToken:        input.SentryConfig.AuthToken,
+		Host:             input.SentryConfig.Host,
+	}
+
 	project := &model.Project{
 		ID:              primitive.NewObjectID(),
 		Name:            input.Name,
@@ -33,7 +46,7 @@ func (s *service) CreateProject(ctx context.Context, userID string, input model.
 		Active:          true,
 		CreatedAt:       time.Now(),
 		UpdatedAt:       time.Now(),
-		SentryConfig:    input.SentryConfig,
+		SentryConfig:    &sentryConfig,
 		ClarityConfig:   input.ClarityConfig,
 		EmbraceConfig:   input.EmbraceConfig,
 		AppMetricConfig: input.AppMetricConfig,

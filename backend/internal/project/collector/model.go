@@ -1,4 +1,4 @@
-package model
+package collector
 
 import (
 	"context"
@@ -25,12 +25,11 @@ const (
 )
 
 type BaseCollector struct {
-	ID        primitive.ObjectID `bson:"_id,omitempty"`
-	ProjectID primitive.ObjectID `bson:"project_id"`
-	Type      CollectorType      `bson:"type"`
-	Status    CollectorStatus    `bson:"status"`
-	LastRun   time.Time          `bson:"last_run"`
-	Error     string             `bson:"error,omitempty"`
+	ID      primitive.ObjectID `json:"_id,omitempty" bson:"_id,omitempty"`
+	Type    CollectorType      `json:"type" bson:"type"`
+	Status  CollectorStatus    `json:"status" bson:"status"`
+	LastRun time.Time          `json:"last_run" bson:"last_run"`
+	Error   string             `json:"error,omitempty" bson:"error,omitempty"`
 }
 
 type Collector interface {

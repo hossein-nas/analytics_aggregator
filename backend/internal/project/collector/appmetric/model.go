@@ -1,11 +1,11 @@
 package appmetric
 
-import model "github.com/hossein-nas/analytics_aggregator/internal/project/models"
+import "github.com/hossein-nas/analytics_aggregator/internal/project/collector"
 
 type Config struct {
-	model.BaseCollector `bson:",inline"`
-	ApplicationID       string   `bson:"application_id"`
-	APIKey              string   `bson:"api_key"`
-	Metrics             []string `bson:"metrics"` // List of metrics to collect
-	Host                string   `bson:"host"`
+	collector.BaseCollector `bson:",inline"`
+	ApplicationID           string   `bson:"application_id"`
+	APIKey                  string   `bson:"api_key"`
+	Metrics                 []string `bson:"metrics"` // List of metrics to collect
+	Host                    string   `bson:"host"`
 }

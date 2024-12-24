@@ -16,8 +16,10 @@ func createSentryCollector(project model.Project) (*sentry.Collector, error) {
 	}
 
 	collector := sentry.NewCollector(sentry.Config{
-		OrganizationSlug: project.SentryConfig.ProjectID,
-		AuthToken:        project.SentryConfig.APIKey,
+		OrganizationSlug: project.SentryConfig.OrganizationSlug,
+		ProjectSlug:      project.SentryConfig.ProjectSlug,
+		AuthToken:        project.SentryConfig.AuthToken,
+		Host:             project.SentryConfig.Host,
 	})
 	return collector, nil
 }
@@ -25,6 +27,7 @@ func createSentryCollector(project model.Project) (*sentry.Collector, error) {
 func createClarityCollector(project model.Project) (*clarity.Collector, error) {
 	return clarity.NewCollector(clarity.Config{
 		ProjectID: project.ClarityConfig.ProjectID,
+		Host:      project.ClarityConfig.Host,
 		APIKey:    project.ClarityConfig.APIKey,
 	})
 }
@@ -35,8 +38,10 @@ func createEmbraceCollector(project model.Project) (*embrace.Collector, error) {
 	}
 
 	collector := embrace.NewCollector(embrace.Config{
-		AppID:  project.EmbraceConfig.AppID,
-		APIKey: project.EmbraceConfig.APIKey,
+		AppID:    project.EmbraceConfig.AppID,
+		Host:     project.EmbraceConfig.Host,
+		APIKey:   project.EmbraceConfig.APIKey,
+		Platform: project.EmbraceConfig.Platform,
 	})
 	return collector, nil
 }
@@ -48,7 +53,9 @@ func createAppMetricCollector(project model.Project) (*appmetric.Collector, erro
 
 	collector := appmetric.NewCollector(appmetric.Config{
 		ApplicationID: project.AppMetricConfig.ApplicationID,
+		Host:          project.AppMetricConfig.Host,
 		APIKey:        project.AppMetricConfig.APIKey,
+		Metrics:       project.AppMetricConfig.Metrics,
 	})
 	return collector, nil
 }

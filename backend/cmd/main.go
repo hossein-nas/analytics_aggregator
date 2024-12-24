@@ -39,10 +39,9 @@ func main() {
 		log.Fatalf("Failed to create indexes: %v", err)
 	}
 
-	publicRouter := mux.NewRouter().PathPrefix("/api/").Subrouter()
-
 	// Auth setup
-	authHandler := auth.NewHandler(db.Database(), cfg.JWT)
+	authHandler := auth.NewHandler(db.Database(), cfg.JWT, "/api")
+	publicRouter := mux.NewRouter().PathPrefix("/api/").Subrouter()
 	protectedRouter := auth.RegisterRoutes(publicRouter, authHandler)
 
 	projectScheduler, err := project.ProjectSetup(protectedRouter, db.Collection("projects"))

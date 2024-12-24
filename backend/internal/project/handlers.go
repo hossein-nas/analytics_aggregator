@@ -7,7 +7,8 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/hossein-nas/analytics_aggregator/internal/auth"
-	model "github.com/hossein-nas/analytics_aggregator/internal/project/models"
+	"github.com/hossein-nas/analytics_aggregator/internal/project/models"
+	"github.com/hossein-nas/analytics_aggregator/pkg/responses"
 )
 
 type Handler struct {
@@ -29,17 +30,20 @@ func RegisterRoutes(router *mux.Router, h *Handler) {
 }
 
 func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
-	var input model.CreateProjectInput
+	var input models.CreateProjectInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		responses.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	user, ok := auth.GetUserFromContext(r.Context())
 
 	if !ok {
+		responses.RespondWithError(w, http.StatusUnauthorized, "There is no user.")
 		log.Fatal("There is no user")
+		return
 	}
+
 	project, err := h.service.CreateProject(r.Context(), user.UserID.Hex(), input)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -54,7 +58,7 @@ func (h *Handler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	key := vars["key"]
 
-	var input model.UpdateProjectInput
+	var input models.UpdateProjectInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

@@ -29,8 +29,6 @@ func Load() (*Config, error) {
 	}
 
 	// DB connection string
-	// for localhost mongoDB
-	// const connectionString = "mongodb://localhost:27017"
 	var connectionString = os.Getenv("DB_URL")
 
 	// Database Name

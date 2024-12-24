@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/dgrijalva/jwt-go"
+	pkg "github.com/hossein-nas/analytics_aggregator/pkg/responses"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -22,7 +23,7 @@ func (h *Handler) AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("access_token")
 		if err != nil {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			pkg.RespondWithError(w, http.StatusUnauthorized, "Unauthorized.")
 			return
 		}
 
@@ -32,21 +33,21 @@ func (h *Handler) AuthMiddleware(next http.Handler) http.Handler {
 		})
 
 		if err != nil || !token.Valid {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			pkg.RespondWithError(w, http.StatusUnauthorized, "Unauthorized.")
 			return
 		}
 
 		// Extract claims
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if !ok {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			pkg.RespondWithError(w, http.StatusUnauthorized, "Unauthorized.")
 			return
 		}
 
 		// Convert user_id to ObjectID
 		userID, err := primitive.ObjectIDFromHex(claims["user_id"].(string))
 		if err != nil {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			pkg.RespondWithError(w, http.StatusUnauthorized, "Unauthorized.")
 			return
 		}
 

@@ -24,7 +24,7 @@ services:
     depends_on:
       - mongo
     environment:
-      - MONGO_URI=mongodb://root:secret@mongo:27017/analytics_aggregator
+      DB_URL : "mongodb://admin:admin@mongo:27017/analytics_aggregator?directConnection=true&authSource=admin"
 
   mongo:
     image: mongo:6-jammy

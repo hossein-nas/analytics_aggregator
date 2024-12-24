@@ -1,10 +1,10 @@
 package clarity
 
-import model "github.com/hossein-nas/analytics_aggregator/internal/project/models"
+import "github.com/hossein-nas/analytics_aggregator/internal/project/collector"
 
 type Config struct {
-	model.BaseCollector `bson:",inline"`
-	ProjectID           string `bson:"project_id"`
-	APIKey              string `bson:"api_key"`
-	Host                string `bson:"host"`
+	collector.BaseCollector `bson:",inline"`
+	ProjectID               string `bson:"project_id"`
+	APIKey                  string `bson:"api_key"`
+	Host                    string `bson:"host"`
 }

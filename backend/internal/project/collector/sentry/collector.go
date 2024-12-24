@@ -62,14 +62,15 @@ func (c *Collector) Collect(ctx context.Context) error {
 	statsSince := now.Add(-24 * time.Hour)
 
 	endpoint := fmt.Sprintf(
-		"%s/api/0/projects/%s/%s/stats/?since=%s",
+		"%s/api/0/projects/%s/%s/stats/?since=%d",
 		baseURL,
 		c.config.OrganizationSlug,
 		c.config.ProjectSlug,
-		statsSince.Format(time.RFC3339),
+		statsSince.Unix(),
 	)
 
 	stats, err := c.fetchStats(ctx, endpoint)
+	fmt.Println(baseURL, endpoint, stats, err)
 	if err != nil {
 		return fmt.Errorf("failed to fetch stats: %w", err)
 	}

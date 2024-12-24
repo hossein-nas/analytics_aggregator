@@ -1,4 +1,4 @@
-package auth
+package responses
 
 import (
 	"encoding/json"
@@ -14,11 +14,11 @@ type SuccessResponse struct {
 	Data    interface{} `json:"data,omitempty"`
 }
 
-func respondWithError(w http.ResponseWriter, code int, message string) {
-	respondWithJSON(w, code, ErrorResponse{Error: message})
+func RespondWithError(w http.ResponseWriter, code int, message string) {
+	RespondWithJSON(w, code, ErrorResponse{Error: message})
 }
 
-func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
+func RespondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	response, err := json.Marshal(payload)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)

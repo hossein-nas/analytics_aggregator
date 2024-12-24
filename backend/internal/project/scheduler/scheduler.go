@@ -75,6 +75,7 @@ func (s *Scheduler) collectAllProjects(ctx context.Context) error {
 
 	// Start collection for each project
 	for _, project := range projects {
+		fmt.Println(project)
 		s.wg.Add(1)
 		go func(p model.Project) {
 			defer s.wg.Done()

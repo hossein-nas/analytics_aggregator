@@ -2,8 +2,10 @@ package auth
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/hossein-nas/analytics_aggregator/internal/config"
+	pkg "github.com/hossein-nas/analytics_aggregator/pkg/responses"
 	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/crypto/bcrypt"
 
@@ -18,6 +20,7 @@ import (
 
 type Handler struct {
 	db            *mongo.Database
+	prefix        string
 	accessSecret  []byte
 	refreshSecret []byte
 }
@@ -32,9 +35,14 @@ type RegisterResponse struct {
 	Username string `json:"username"`
 }
 
-func NewHandler(db *mongo.Database, cfg config.JWTConfig) *Handler {
+func NewHandler(db *mongo.Database, cfg config.JWTConfig, pathPrefix interface{}) *Handler {
+	if pathPrefix == nil {
+		pathPrefix = "/"
+	}
+
 	return &Handler{
 		db:            db,
+		prefix:        pathPrefix.(string),
 		accessSecret:  []byte(cfg.AccessSecret),
 		refreshSecret: []byte(cfg.RefreshSecret),
 	}
@@ -87,7 +95,7 @@ func (h *Handler) setTokenCookies(w http.ResponseWriter, accessToken, refreshTok
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
-		Path:     "/",
+		Path:     h.prefix + "/",
 		MaxAge:   15 * 60, // 15 minutes
 	})
 
@@ -97,7 +105,7 @@ func (h *Handler) setTokenCookies(w http.ResponseWriter, accessToken, refreshTok
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
-		Path:     "/auth/refresh",
+		Path:     h.prefix + "/auth/refresh",
 		MaxAge:   7 * 24 * 60 * 60, // 7 days
 	})
 }
@@ -105,7 +113,7 @@ func (h *Handler) setTokenCookies(w http.ResponseWriter, accessToken, refreshTok
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var credentials User
 	if err := json.NewDecoder(r.Body).Decode(&credentials); err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid request body")
+		pkg.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -115,24 +123,24 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	}).Decode(&user)
 
 	if err != nil {
-		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		pkg.RespondWithError(w, http.StatusUnauthorized, "Invalid credentials")
 		return
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(credentials.Password)); err != nil {
-		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		pkg.RespondWithError(w, http.StatusUnauthorized, "Invalid credentials")
 		return
 	}
 
 	accessToken, refreshToken, err := h.generateTokens(user.ID, user.Username)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		pkg.RespondWithError(w, http.StatusUnauthorized, err.Error())
 		return
 	}
 
 	h.setTokenCookies(w, accessToken, refreshToken)
 
-	respondWithJSON(w, http.StatusOK, SuccessResponse{
+	pkg.RespondWithJSON(w, http.StatusOK, pkg.SuccessResponse{
 		Message: "Login successful",
 		Data: map[string]string{
 			"user_id":  user.ID.Hex(),
@@ -145,17 +153,17 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	// Parse request body
 	var req RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		pkg.RespondWithError(w, http.StatusBadRequest, "Invalid request body.")
 		return
 	}
 
 	// Validate input
 	if len(req.Username) < 3 {
-		http.Error(w, "Username must be at least 3 characters long", http.StatusBadRequest)
+		pkg.RespondWithError(w, http.StatusBadRequest, "Username must be at least 3 characters long")
 		return
 	}
 	if len(req.Password) < 8 {
-		http.Error(w, "Password must be at least 8 characters long", http.StatusBadRequest)
+		pkg.RespondWithError(w, http.StatusBadRequest, "Password must be at least 8 characters long")
 		return
 	}
 
@@ -166,18 +174,18 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	}).Decode(&existingUser)
 
 	if err == nil {
-		http.Error(w, "Username already exists", http.StatusConflict)
+		pkg.RespondWithError(w, http.StatusConflict, "Username already exists")
 		return
 	}
 	if err != mongo.ErrNoDocuments {
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		pkg.RespondWithError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
 	// Hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		pkg.RespondWithError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
@@ -191,14 +199,14 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	// Insert user into database
 	_, err = h.db.Collection("users").InsertOne(r.Context(), user)
 	if err != nil {
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		pkg.RespondWithError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
 	// Generate tokens
 	accessToken, refreshToken, err := h.generateTokens(user.ID, user.Username)
 	if err != nil {
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		pkg.RespondWithError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
@@ -213,13 +221,17 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(response)
+	pkg.RespondWithJSON(w, http.StatusOK, &pkg.SuccessResponse{
+		Message: "User has registered successfully.",
+		Data:    &response,
+	})
 }
 
 func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	refreshCookie, err := r.Cookie("refresh_token")
+	fmt.Println(r.Cookies())
 	if err != nil {
-		http.Error(w, "Refresh token not found", http.StatusUnauthorized)
+		pkg.RespondWithError(w, http.StatusUnauthorized, "Refresh token not found")
 		return
 	}
 
@@ -228,7 +240,7 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil || !token.Valid {
-		http.Error(w, "Invalid refresh token", http.StatusUnauthorized)
+		pkg.RespondWithError(w, http.StatusUnauthorized, "Invalid refresh token.")
 		return
 	}
 
@@ -244,7 +256,7 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	}).Decode(&rt)
 
 	if err != nil {
-		http.Error(w, "Invalid refresh token", http.StatusUnauthorized)
+		pkg.RespondWithError(w, http.StatusUnauthorized, "Invalid refresh token.")
 		return
 	}
 
@@ -256,7 +268,7 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	)
 
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		pkg.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -267,16 +279,20 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	}).Decode(&user)
 
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		pkg.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	accessToken, refreshToken, err := h.generateTokens(user.ID, user.Username)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		pkg.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	h.setTokenCookies(w, accessToken, refreshToken)
 	w.WriteHeader(http.StatusOK)
+	pkg.RespondWithJSON(w, http.StatusOK, &pkg.SuccessResponse{
+		Message: "Refresh token and access token has updated.",
+		Data:    nil,
+	})
 }
