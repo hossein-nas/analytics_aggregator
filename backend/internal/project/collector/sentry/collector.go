@@ -45,10 +45,32 @@ func (c *Collector) Validate() error {
 }
 
 type SentryStats struct {
-	Timestamp  int64 `json:"timestamp"`
-	Count      int   `json:"count"`
-	ErrorCount int   `json:"error_count"`
-	CrashCount int   `json:"crash_count"`
+	Start     time.Time   `json:"start"`
+	End       time.Time   `json:"end"`
+	Intervals []time.Time `json:"intervals,omitempty"`
+	Groups    []Group     `json:"groups"`
+}
+
+// Group represents each group object in the array
+type Group struct {
+	By     By     `json:"by,omitempty"`
+	Totals Totals `json:"totals,omitempty"`
+	Series Series `json:"series,omitempty"`
+}
+
+// By represents the categorization of each group
+type By struct {
+	Category string `json:"category,omitempty"`
+}
+
+// Totals represents the totals object in each group
+type Totals struct {
+	SumQuantity int `json:"sum(quantity),omitempty"`
+}
+
+// Series represents the series object in each group
+type Series struct {
+	SumQuantity []int `json:"sum(quantity),omitempty"`
 }
 
 func (c *Collector) Collect(ctx context.Context) error {
@@ -59,14 +81,16 @@ func (c *Collector) Collect(ctx context.Context) error {
 
 	// Get stats for last 24 hours
 	now := time.Now()
-	statsSince := now.Add(-24 * time.Hour)
+	startOfDay := now.Truncate(24 * time.Hour)
 
 	endpoint := fmt.Sprintf(
-		"%s/api/0/projects/%s/%s/stats/?since=%d",
+		"%s/api/0/organizations/%s/stats_v2/?start=%d&end=%d&field=%s&project_id=17&groupBy=%s&interval=1d",
 		baseURL,
 		c.config.OrganizationSlug,
-		c.config.ProjectSlug,
-		statsSince.Unix(),
+		startOfDay.Unix(),
+		now.Unix(),
+		"sum(quantity)",
+		"category",
 	)
 
 	stats, err := c.fetchStats(ctx, endpoint)
@@ -98,6 +122,19 @@ func (c *Collector) fetchStats(ctx context.Context, endpoint string) ([]SentrySt
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
+	// // Read the response body
+	// body, err := io.ReadAll(resp.Body)
+	// if err != nil {
+	// 	fmt.Println("Error reading the response body:", err)
+	// 	// return
+	// }
+
+	// // Convert the body to a string
+	// bodyString := string(body)
+
+	// // Print the human-readable response body
+	// fmt.Println("Response body:\n", bodyString)
+
 	var stats []SentryStats
 	if err := json.NewDecoder(resp.Body).Decode(&stats); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
@@ -114,18 +151,18 @@ func (c *Collector) updateMetrics(stats []SentryStats) {
 	var recentEvents, recentErrors int
 
 	// Calculate metrics for the last hour
-	oneHourAgo := time.Now().Add(-1 * time.Hour).Unix()
+	// oneHourAgo := time.Now().Add(-1 * time.Hour).Unix()
 
-	for _, stat := range stats {
-		totalEvents += stat.Count
-		totalErrors += stat.ErrorCount
-		totalCrashes += stat.CrashCount
+	// for _, stat := range stats {
+	// 	totalEvents += stat.Count
+	// 	totalErrors += stat.ErrorCount
+	// 	totalCrashes += stat.CrashCount
 
-		if stat.Timestamp >= oneHourAgo {
-			recentEvents += stat.Count
-			recentErrors += stat.ErrorCount
-		}
-	}
+	// 	if stat.Timestamp >= oneHourAgo {
+	// 		recentEvents += stat.Count
+	// 		recentErrors += stat.ErrorCount
+	// 	}
+	// }
 
 	c.metrics = map[string]interface{}{
 		"sentry_events_total":     totalEvents,
