@@ -1,9 +1,11 @@
 package sentry
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -48,7 +50,7 @@ type SentryStats struct {
 	Start     time.Time   `json:"start"`
 	End       time.Time   `json:"end"`
 	Intervals []time.Time `json:"intervals,omitempty"`
-	Groups    []Group     `json:"groups"`
+	Groups    []Group     `json:"groups,omitempty"`
 }
 
 // Group represents each group object in the array
@@ -94,7 +96,6 @@ func (c *Collector) Collect(ctx context.Context) error {
 	)
 
 	stats, err := c.fetchStats(ctx, endpoint)
-	fmt.Println(baseURL, endpoint, stats, err)
 	if err != nil {
 		return fmt.Errorf("failed to fetch stats: %w", err)
 	}
@@ -103,7 +104,7 @@ func (c *Collector) Collect(ctx context.Context) error {
 	return nil
 }
 
-func (c *Collector) fetchStats(ctx context.Context, endpoint string) ([]SentryStats, error) {
+func (c *Collector) fetchStats(ctx context.Context, endpoint string) (*SentryStats, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -122,55 +123,28 @@ func (c *Collector) fetchStats(ctx context.Context, endpoint string) ([]SentrySt
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	// // Read the response body
-	// body, err := io.ReadAll(resp.Body)
-	// if err != nil {
-	// 	fmt.Println("Error reading the response body:", err)
-	// 	// return
-	// }
+	bodyBytes, _ := io.ReadAll(resp.Body)
 
-	// // Convert the body to a string
-	// bodyString := string(body)
-
-	// // Print the human-readable response body
-	// fmt.Println("Response body:\n", bodyString)
-
-	var stats []SentryStats
-	if err := json.NewDecoder(resp.Body).Decode(&stats); err != nil {
+	var stats SentryStats
+	if err := json.NewDecoder(bytes.NewReader(bodyBytes)).Decode(&stats); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	return stats, nil
+	return &stats, nil
 }
 
-func (c *Collector) updateMetrics(stats []SentryStats) {
+func (c *Collector) updateMetrics(stats *SentryStats) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	var totalEvents, totalErrors, totalCrashes int
-	var recentEvents, recentErrors int
-
-	// Calculate metrics for the last hour
-	// oneHourAgo := time.Now().Add(-1 * time.Hour).Unix()
-
-	// for _, stat := range stats {
-	// 	totalEvents += stat.Count
-	// 	totalErrors += stat.ErrorCount
-	// 	totalCrashes += stat.CrashCount
-
-	// 	if stat.Timestamp >= oneHourAgo {
-	// 		recentEvents += stat.Count
-	// 		recentErrors += stat.ErrorCount
-	// 	}
-	// }
-
 	c.metrics = map[string]interface{}{
-		"sentry_events_total":     totalEvents,
-		"sentry_errors_total":     totalErrors,
-		"sentry_crashes_total":    totalCrashes,
-		"sentry_events_last_hour": recentEvents,
-		"sentry_errors_last_hour": recentErrors,
-		"sentry_error_rate":       float64(totalErrors) / float64(totalEvents),
+		"sentry_errors_total":           stats.Groups[0].Totals.SumQuantity,
+		"sentry_spans_total":            stats.Groups[1].Totals.SumQuantity,
+		"sentry_profiles_total":         stats.Groups[2].Totals.SumQuantity,
+		"sentry_transactions_total":     stats.Groups[3].Totals.SumQuantity,
+		"sentry_replays_total":          stats.Groups[4].Totals.SumQuantity,
+		"sentry_sessions_total":         stats.Groups[5].Totals.SumQuantity,
+		"sentry_sessions_indexed_total": stats.Groups[6].Totals.SumQuantity,
 	}
 }
 

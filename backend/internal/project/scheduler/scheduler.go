@@ -2,11 +2,13 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
 	"time"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/hossein-nas/analytics_aggregator/internal/project/collector"
 	model "github.com/hossein-nas/analytics_aggregator/internal/project/models"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -17,19 +19,21 @@ type ProjectRepository interface {
 }
 
 type Scheduler struct {
-	config      *Config
-	projectRepo ProjectRepository
-	collectors  map[string]collector.MetricsCollector
-	stopChan    chan struct{}
-	wg          sync.WaitGroup
+	config       *Config
+	projectRepo  ProjectRepository
+	statsService SchedulerService
+	collectors   map[string]collector.MetricsCollector
+	stopChan     chan struct{}
+	wg           sync.WaitGroup
 }
 
-func NewScheduler(config *Config, projectRepo ProjectRepository) *Scheduler {
+func NewScheduler(config *Config, statsService SchedulerService, projectRepo ProjectRepository) *Scheduler {
 	return &Scheduler{
-		config:      config,
-		projectRepo: projectRepo,
-		collectors:  make(map[string]collector.MetricsCollector),
-		stopChan:    make(chan struct{}),
+		config:       config,
+		statsService: statsService,
+		projectRepo:  projectRepo,
+		collectors:   make(map[string]collector.MetricsCollector),
+		stopChan:     make(chan struct{}),
 	}
 }
 
@@ -75,7 +79,6 @@ func (s *Scheduler) collectAllProjects(ctx context.Context) error {
 
 	// Start collection for each project
 	for _, project := range projects {
-		fmt.Println(project)
 		s.wg.Add(1)
 		go func(p model.Project) {
 			defer s.wg.Done()
@@ -148,7 +151,31 @@ func (s *Scheduler) getCollectorForType(collectorType string, project model.Proj
 }
 
 func (s *Scheduler) storeMetrics(ctx context.Context, projectID primitive.ObjectID, collectorType string, metrics map[string]interface{}) error {
-	// Implement metric storage logic here
-	// This could be storing in MongoDB, sending to a time-series database, etc.
+	stats, _ := s.statsService.LastStats(ctx, projectID, collectorType)
+	if stats != nil {
+		lastRunTime, err := time.Parse(time.RFC3339, stats.LastRun)
+		println("diff", lastRunTime.Sub(time.Now()).Hours())
+		if err != nil && lastRunTime.Sub(time.Now()).Hours() < 2 {
+			fmt.Println("This project is fetched recently. omitting...", projectID, collectorType)
+			return nil
+		}
+
+	}
+	validate := validator.New()
+	// stat, _ := s.statsService.LastStats(ctx, projectID.Hex(), collectorType)
+	payload := &Stat{
+		ID:      primitive.NewObjectID().Hex(),
+		Type:    collectorType,
+		LastRun: time.Now().Format(time.RFC3339),
+		Data:    metrics,
+	}
+	err2 := validate.Struct(payload)
+
+	if err2 != nil {
+		fmt.Println("err", err2)
+		return errors.New("Stats are in wrong format")
+	}
+
+	s.statsService.StoreStats(ctx, projectID, collectorType, payload)
 	return nil
 }
