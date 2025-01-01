@@ -1,10 +1,13 @@
 package clarity
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"reflect"
 	"sync"
 	"time"
 )
@@ -16,13 +19,33 @@ type Collector struct {
 	mu      sync.RWMutex
 }
 
-type ClarityStats struct {
-	Sessions    int     `json:"sessions"`
-	PageViews   int     `json:"pageViews"`
-	ScrollDepth float64 `json:"scrollDepth"`
-	TimeOnSite  float64 `json:"timeOnSite"` // in seconds
-	BounceRate  float64 `json:"bounceRate"`
+// Information struct for common fields
+type Information struct {
+	SessionsCount                   string  `json:"sessionsCount" bson:"sessions_count,omitempty"`
+	SessionsWithMetricPercentage    float64 `json:"sessionsWithMetricPercentage" bson:"sessions_with_metric_percentage,omitempty"`
+	SessionsWithoutMetricPercentage float64 `json:"sessionsWithoutMetricPercentage" bson:"sessions_without_metric_percentage,omitempty"`
+	PagesViews                      string  `json:"pagesViews" bson:"pages_views,omitempty"`
+	SubTotal                        string  `json:"subTotal" bson:"sub_total,omitempty"`
+	AverageScrollDepth              float64 `json:"averageScrollDepth" bson:"average_scroll_depth,omitempty"`
+	TotalSessionCount               string  `json:"totalSessionCount" bson:"total_session_count,omitempty"`
+	TotalBotSessionCount            string  `json:"totalBotSessionCount" bson:"total_bot_session_count,omitempty"`
+	DistinctUserCount               string  `json:"distinctUserCount" bson:"distinct_user_count,omitempty"`
+	PagesPerSessionPercentage       float64 `json:"pagesPerSessionPercentage" bson:"pages_per_session_percentage,omitempty"`
+	TotalTime                       string  `json:"totalTime" bson:"total_time,omitempty"`
+	ActiveTime                      string  `json:"activeTime" bson:"active_time,omitempty"`
+	Name                            string  `json:"name" bson:"name,omitempty"`
+	URL                             string  `json:"url" bson:"url,omitempty"`
+	VisitsCount                     string  `json:"visitsCount" bson:"visits_count,omitempty"`
 }
+
+// Metric struct for each metric
+type Metric struct {
+	MetricName  string        `json:"metricName" bson:"metric_name"`
+	Information []Information `json:"information" bson:"information"`
+}
+
+// Response struct for the entire JSON response
+type ClarityStats []Metric
 
 func NewCollector(config Config) (*Collector, error) {
 	collector := &Collector{
@@ -56,12 +79,8 @@ func (c *Collector) Validate() error {
 }
 
 func (c *Collector) Collect(ctx context.Context) error {
-	baseURL := c.config.Host
-	if baseURL == "" {
-		baseURL = "https://clarity.microsoft.com/api/v1"
-	}
+	endpoint := "https://www.clarity.ms/export-data/api/v1/project-live-insights?numOfDays=1"
 
-	endpoint := fmt.Sprintf("%s/projects/%s/metrics", baseURL, c.config.ProjectID)
 	stats, err := c.fetchStats(ctx, endpoint)
 	if err != nil {
 		return fmt.Errorf("failed to fetch Clarity stats: %w", err)
@@ -81,6 +100,7 @@ func (c *Collector) fetchStats(ctx context.Context, endpoint string) (*ClaritySt
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.client.Do(req)
+	fmt.Println("resp", resp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute request: %w", err)
 	}
@@ -90,8 +110,11 @@ func (c *Collector) fetchStats(ctx context.Context, endpoint string) (*ClaritySt
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	fmt.Println("bodyBytes", string(bodyBytes))
 	var stats ClarityStats
-	if err := json.NewDecoder(resp.Body).Decode(&stats); err != nil {
+	if err := json.NewDecoder(bytes.NewReader(bodyBytes)).Decode(&stats); err != nil {
+		fmt.Println("err", err)
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
@@ -102,13 +125,23 @@ func (c *Collector) updateMetrics(stats *ClarityStats) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	value, _ := json.MarshalIndent(stats, "", "  ")
+	fmt.Println("stats", string(value))
+
 	c.metrics = map[string]interface{}{
-		"clarity_sessions_total":    stats.Sessions,
-		"clarity_pageviews_total":   stats.PageViews,
-		"clarity_scroll_depth_avg":  stats.ScrollDepth,
-		"clarity_time_on_site_avg":  stats.TimeOnSite,
-		"clarity_bounce_rate":       stats.BounceRate,
-		"clarity_pages_per_session": float64(stats.PageViews) / float64(stats.Sessions),
+		"clarity_total_sessions":         getMetricValue(stats, "Traffic", "totalSessionCount"),
+		"clarity_total_bot_sessions":     getMetricValue(stats, "Traffic", "totalBotSessionCount"),
+		"clarity_distinct_users":         getMetricValue(stats, "Traffic", "distinctUserCount"),
+		"clarity_pages_per_session":      getMetricValue(stats, "Traffic", "pagesPerSessionPercentage"),
+		"clarity_scroll_depth_avg":       getMetricValue(stats, "ScrollDepth", "averageScrollDepth"),
+		"clarity_total_engagement_time":  getMetricValue(stats, "EngagementTime", "totalTime"),
+		"clarity_active_engagement_time": getMetricValue(stats, "EngagementTime", "activeTime"),
+		"clarity_dead_clicks":            getMetricValue(stats, "DeadClickCount", "subTotal"),
+		"clarity_rage_clicks":            getMetricValue(stats, "RageClickCount", "subTotal"),
+		"clarity_excessive_scrolls":      getMetricValue(stats, "ExcessiveScroll", "subTotal"),
+		"clarity_quickback_clicks":       getMetricValue(stats, "QuickbackClick", "subTotal"),
+		"clarity_script_errors":          getMetricValue(stats, "ScriptErrorCount", "subTotal"),
+		"clarity_error_clicks":           getMetricValue(stats, "ErrorClickCount", "subTotal"),
 	}
 }
 
@@ -121,4 +154,19 @@ func (c *Collector) GetMetrics() (map[string]interface{}, error) {
 		metrics[k] = v
 	}
 	return metrics, nil
+}
+
+func getMetricValue(stats *ClarityStats, metricName string, fieldName string) interface{} {
+	if stats == nil {
+		return nil
+	}
+	for _, metric := range *stats {
+		if metric.MetricName == metricName && len(metric.Information) > 0 {
+			v := reflect.ValueOf(metric.Information[0])
+			if f := v.FieldByName(fieldName); f.IsValid() {
+				return f.Interface()
+			}
+		}
+	}
+	return nil
 }

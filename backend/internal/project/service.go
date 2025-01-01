@@ -5,6 +5,9 @@ import (
 	"time"
 
 	"github.com/hossein-nas/analytics_aggregator/internal/project/collector"
+	"github.com/hossein-nas/analytics_aggregator/internal/project/collector/appmetric"
+	"github.com/hossein-nas/analytics_aggregator/internal/project/collector/clarity"
+	"github.com/hossein-nas/analytics_aggregator/internal/project/collector/embrace"
 	"github.com/hossein-nas/analytics_aggregator/internal/project/collector/sentry"
 	model "github.com/hossein-nas/analytics_aggregator/internal/project/models"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -26,30 +29,69 @@ func NewService(repo Repository) Service {
 }
 
 func (s *service) CreateProject(ctx context.Context, userID string, input model.CreateProjectInput) (*model.Project, error) {
-	var sentryConfig sentry.Config = sentry.Config{
-		BaseCollector: collector.BaseCollector{
-			ID:   primitive.NewObjectID(),
-			Type: "sentry",
-		},
-		OrganizationSlug: input.SentryConfig.OrganizationSlug,
-		ProjectSlug:      input.SentryConfig.ProjectSlug,
-		AuthToken:        input.SentryConfig.AuthToken,
-		Host:             input.SentryConfig.Host,
+	project := &model.Project{
+		ID:         primitive.NewObjectID(),
+		Name:       input.Name,
+		Key:        input.Key,
+		Collectors: input.Collectors,
+		CreatedBy:  userID,
+		Active:     true,
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
 	}
 
-	project := &model.Project{
-		ID:              primitive.NewObjectID(),
-		Name:            input.Name,
-		Key:             input.Key,
-		Collectors:      input.Collectors,
-		CreatedBy:       userID,
-		Active:          true,
-		CreatedAt:       time.Now(),
-		UpdatedAt:       time.Now(),
-		SentryConfig:    &sentryConfig,
-		ClarityConfig:   input.ClarityConfig,
-		EmbraceConfig:   input.EmbraceConfig,
-		AppMetricConfig: input.AppMetricConfig,
+	// Configure Sentry if provided
+	if input.SentryConfig != nil {
+		sentryConfig := sentry.Config{
+			BaseCollector: collector.BaseCollector{
+				ID:   primitive.NewObjectID(),
+				Type: "sentry",
+			},
+			OrganizationSlug: input.SentryConfig.OrganizationSlug,
+			ProjectSlug:      input.SentryConfig.ProjectSlug,
+			AuthToken:        input.SentryConfig.AuthToken,
+			Host:             input.SentryConfig.Host,
+		}
+		project.SentryConfig = &sentryConfig
+	}
+
+	// Configure Clarity if provided
+	if input.ClarityConfig != nil {
+		clarityConfig := clarity.Config{
+			BaseCollector: collector.BaseCollector{
+				ID:   primitive.NewObjectID(),
+				Type: "clarity",
+			},
+			ProjectID: input.ClarityConfig.ProjectID,
+			APIKey:    input.ClarityConfig.APIKey,
+		}
+		project.ClarityConfig = &clarityConfig
+	}
+
+	// Configure Embrace if provided
+	if input.EmbraceConfig != nil {
+		embraceConfig := embrace.Config{
+			BaseCollector: collector.BaseCollector{
+				ID:   primitive.NewObjectID(),
+				Type: "embrace",
+			},
+			AppID:     input.EmbraceConfig.AppID,
+			APIKey:    input.EmbraceConfig.APIKey,
+			AppSecret: input.EmbraceConfig.AppSecret,
+		}
+		project.EmbraceConfig = &embraceConfig
+	}
+
+	// Configure AppMetric if provided
+	if input.AppMetricConfig != nil {
+		appMetricConfig := appmetric.Config{
+			BaseCollector: collector.BaseCollector{
+				ID:   primitive.NewObjectID(),
+				Type: "appmetric",
+			},
+			APIKey: input.AppMetricConfig.APIKey,
+		}
+		project.AppMetricConfig = &appMetricConfig
 	}
 
 	if err := s.repo.Create(ctx, project); err != nil {

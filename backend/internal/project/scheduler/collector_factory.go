@@ -27,7 +27,6 @@ func createSentryCollector(project model.Project) (*sentry.Collector, error) {
 func createClarityCollector(project model.Project) (*clarity.Collector, error) {
 	return clarity.NewCollector(clarity.Config{
 		ProjectID: project.ClarityConfig.ProjectID,
-		Host:      project.ClarityConfig.Host,
 		APIKey:    project.ClarityConfig.APIKey,
 	})
 }

@@ -11,10 +11,18 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+// Stat represents statistics for a service
+type Stat struct {
+	LastCollectedAt time.Time `json:"last_collected_at,omitempty" bson:"last_collected_at,omitempty"`
+	LastStatus      string    `json:"last_status,omitempty" bson:"last_status,omitempty"`
+	ErrorMessage    string    `json:"error_message,omitempty" bson:"error_message,omitempty"`
+	CollectionCount int64     `json:"collection_count,omitempty" bson:"collection_count,omitempty"`
+}
+
 type Project struct {
 	ID         primitive.ObjectID `json:"_id,omitempty" bson:"_id,omitempty"`
 	Name       string             `json:"name" bson:"name"`
-	Key        string             `json:"key" bson:"key" json:"key"`
+	Key        string             `json:"key" bson:"key"`
 	CreatedBy  string             `json:"created_by" bson:"created_by"`
 	Active     bool               `json:"active" bson:"active"`
 	CreatedAt  time.Time          `json:"created_at" bson:"created_at"`
@@ -23,9 +31,15 @@ type Project struct {
 
 	// Service configs - only populated if service is enabled
 	SentryConfig    *sentry.Config    `json:"sentry_config,omitempty" bson:"sentry_config,omitempty"`
-	ClarityConfig   *clarity.Config   `json:"clarity_config,omitempty" bson:"clarity,omitempty"`
+	ClarityConfig   *clarity.Config   `json:"clarity_config,omitempty" bson:"clarity_config,omitempty"`
 	EmbraceConfig   *embrace.Config   `json:"embrace_config,omitempty" bson:"embrace_config,omitempty"`
 	AppMetricConfig *appmetric.Config `json:"app_metric_config,omitempty" bson:"app_metric_config,omitempty"`
+
+	// Stats for each service
+	SentryStats    *Stat `json:"sentry_stats,omitempty" bson:"sentry_stats,omitempty"`
+	ClarityStats   *Stat `json:"clarity_stats,omitempty" bson:"clarity_stats,omitempty"`
+	EmbraceStats   *Stat `json:"embrace_stats,omitempty" bson:"embrace_stats,omitempty"`
+	AppMetricStats *Stat `json:"app_metric_stats,omitempty" bson:"app_metric_stats,omitempty"`
 }
 
 var (

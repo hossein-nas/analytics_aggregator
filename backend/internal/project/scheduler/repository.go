@@ -30,11 +30,15 @@ func NewSchedulerRepository(db *mongo.Collection) Repository {
 
 func (r *SchedulerRepository) StoreStats(ctx context.Context, projectId primitive.ObjectID, _type string, payload *Stat) error {
 	statsKey := _type + "_stats"
-	value := map[string]interface{}{}
-	value[statsKey] = *payload
-	result, err := r.db.UpdateOne(ctx, bson.M{"_id": projectId}, bson.M{"$set": value})
+	update := bson.M{
+		"$set": bson.M{
+			statsKey: payload,
+		},
+	}
+
+	result, err := r.db.UpdateOne(ctx, bson.M{"_id": projectId}, update)
 	if err != nil {
-		return nil
+		return fmt.Errorf("failed to update stats: %w", err)
 	}
 
 	if result.MatchedCount == 0 {
@@ -44,19 +48,32 @@ func (r *SchedulerRepository) StoreStats(ctx context.Context, projectId primitiv
 	return nil
 }
 
-func (r *SchedulerRepository) LastStats(
-	ctx context.Context,
-	projectId primitive.ObjectID,
-	_type string,
-) (*Stat, error) {
-	var stat map[string]interface{}
-	err := r.db.FindOne(ctx, bson.M{"_id": projectId}).Decode(&stat)
-	fmt.Println("stat", stat, _type, projectId)
-	if err != nil {
-		return nil, StatNotFound
+func (r *SchedulerRepository) LastStats(ctx context.Context, projectId primitive.ObjectID, _type string) (*Stat, error) {
+	var project struct {
+		SentryStats    *Stat `bson:"sentry_stats,omitempty"`
+		ClarityStats   *Stat `bson:"clarity_stats,omitempty"`
+		EmbraceStats   *Stat `bson:"embrace_stats,omitempty"`
+		AppMetricStats *Stat `bson:"app_metric_stats,omitempty"`
 	}
 
-	value := stat[_type+"_stats"].(Stat)
+	err := r.db.FindOne(ctx, bson.M{"_id": projectId}).Decode(&project)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, StatNotFound
+		}
+		return nil, err
+	}
 
-	return &value, nil
+	switch _type {
+	case "sentry":
+		return project.SentryStats, nil
+	case "clarity":
+		return project.ClarityStats, nil
+	case "embrace":
+		return project.EmbraceStats, nil
+	case "appmetric":
+		return project.AppMetricStats, nil
+	default:
+		return nil, fmt.Errorf("unknown collector type: %s", _type)
+	}
 }
